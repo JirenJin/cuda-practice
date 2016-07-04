@@ -1,0 +1,2 @@
+Increase numbter of threads in each block whenever possible (however, sometimes reaching the maximum number of threads may not be a good idea.), much faster than using more blocks with fewer threads.
+For example, in this problem, the execution time is 0.4 ms when use numRows * numCols blocks with only 1 thread; but using (numRows * numCols / 512) blocks with 512 threads in each block only costs 0.015ms.
