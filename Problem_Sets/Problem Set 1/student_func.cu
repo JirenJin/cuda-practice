@@ -52,10 +52,13 @@ void rgba_to_greyscale(const uchar4* const rgbaImage,
   //calculate a 1D offset
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx < numRows * numCols) {
-        float R = rgbaImage[idx].x;
-        float G = rgbaImage[idx].y;
-        float B = rgbaImage[idx].z;
-        greyImage[idx] = 0.299f * R + 0.587f * G + 0.114f * B;
+      uchar4 rgba = rgbaImage[idx];
+      float channelSum = __fadd_rn(__fadd_rn(__fmul_rn(.299f, rgba.x), __fmul_rn(.587f, rgba.y)), __fmul_rn(.114f, rgba.z));
+      greyImage[idx]=channelSum;  
+        //float R = rgbaImage[idx].x;
+        //float G = rgbaImage[idx].y;
+        //float B = rgbaImage[idx].z;
+        //greyImage[idx] = 0.299f * R + 0.587f * G + 0.114f * B;
     }
 }
 
