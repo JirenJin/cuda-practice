@@ -100,6 +100,7 @@
 
 //****************************************************************************
 
+//#include "reference_calc.cpp"
 #include "utils.h"
 
 __global__
@@ -109,51 +110,31 @@ void gaussian_blur(const unsigned char* const inputChannel,
                    const float* const filter, const int filterWidth)
 {
   // TODO
-  __shared__ unsigned char shared_block[32*32];
-  
-  int c = threadIdx.x - filterWidth/2 + blockIdx.x * (blockDim.x - 2*(filterWidth/2));
-  int r = threadIdx.y - filterWidth/2 + blockIdx.y * (blockDim.y - 2*(filterWidth/2));
-  if ( c >= numCols || r >= numRows || c < 0 || r < 0 )
+  int absolute_image_position_x = threadIdx.x + blockIdx.x * blockDim.x;
+  int absolute_image_position_y = threadIdx.y + blockIdx.y * blockDim.y;
+  if ( absolute_image_position_x >= numCols ||
+       absolute_image_position_y >= numRows )
   {
     return;
   }
-  shared_block[threadIdx.x + threadIdx.y * blockDim.x] = inputChannel[c + r * numCols];
-  
-  // make sure that all reading operations are completed
-  __syncthreads();
-  
-
-  
-  if (threadIdx.x < filterWidth/2 || threadIdx.x >= blockDim.x - filterWidth/2 || threadIdx.y < filterWidth/2 || threadIdx.y >= blockDim.y - filterWidth/2)
-  {
-    return;
-  }
-  
+  int r = absolute_image_position_y;
+  int c = absolute_image_position_x;
   float result = 0;
-  
   for (int filter_r = -filterWidth/2; filter_r <= filterWidth/2; ++filter_r) {
     for (int filter_c = -filterWidth/2; filter_c <= filterWidth/2; ++filter_c) {
       //Find the global image position for this filter position
       //clamp to boundary of the image
       int image_r = min(max(r + filter_r, 0), static_cast<int>(numRows - 1));
       int image_c = min(max(c + filter_c, 0), static_cast<int>(numCols - 1));
-      int r_diff = image_r - r;
-      int c_diff = image_c - c;
-      int sub_image_r = threadIdx.y + r_diff;
-      int sub_image_c = threadIdx.x + c_diff;
-
       // important to cast inputChannel value to float for intermediate computing
-      
-      //float image_value = static_cast<float>(inputChannel[image_r * numCols + image_c]);
-      
-      float sub_image_value = static_cast<float>(shared_block[sub_image_r * blockDim.x + sub_image_c]);
+      float image_value = static_cast<float>(inputChannel[image_r * numCols + image_c]);
       float filter_value = filter[(filter_r + filterWidth/2) * filterWidth + filter_c + filterWidth/2];
-      result += sub_image_value * filter_value;
+
+      result += image_value * filter_value;
     }
   }
-  
+
   outputChannel[r * numCols + c] = result;
-  
   
   // NOTE: Be sure to compute any intermediate results in floating point
   // before storing the final result as unsigned char.
@@ -280,13 +261,13 @@ void your_gaussian_blur(const uchar4 * const h_inputImageRGBA, uchar4 * const d_
                         const int filterWidth)
 {
   //TODO: Set reasonable block size (i.e., number of threads per block)
-  const dim3 blockSize(32, 32, 1);
+  const dim3 blockSize(16, 16, 1);
 
   //TODO:
   //Compute correct grid size (i.e., number of blocks per kernel launch)
   //from the image size and and block size.
-  const dim3 gridSize(numCols / (blockSize.x-2*(filterWidth/2)) + 1, numRows / (blockSize.y-2*(filterWidth/2)) + 1);
-  
+  const dim3 gridSize(numCols / blockSize.x + 1, numRows / blockSize.y + 1);
+
   //TODO: Launch a kernel for separating the RGBA image into different color channels
   separateChannels<<<gridSize, blockSize>>>(d_inputImageRGBA, numRows, numCols, d_red, d_green, d_blue);
   // Call cudaDeviceSynchronize(), then call checkCudaErrors() immediately after
