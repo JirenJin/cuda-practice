@@ -1,25 +1,40 @@
 #include <stdio.h>
 
-#define BLOCK_SIZE 512 
-#define RADIUS 5
+#define BLOCK_SIZE 1024 
+#define RADIUS 30
 #define N 10000000 // size of 1D input array
 
 __global__ void stencil_1d(int *in, int *out) {
-    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    __shared__ int temp[BLOCK_SIZE + 2 * RADIUS];
+    int gindex = threadIdx.x + blockIdx.x * blockDim.x;
+    int lindex = threadIdx.x + RADIUS;
+
+
+    // Read input elements into shared memory
+    temp[lindex] = in[gindex + RADIUS];
 
     // detect out-of-bound 
-    if (index >= N - 2 * RADIUS){
+    if (gindex >= N - 2 * RADIUS){
         return;
     }
+
+
+    if (threadIdx.x < RADIUS) {
+        temp[lindex - RADIUS] = in[gindex];
+        temp[lindex + BLOCK_SIZE] = in[gindex + RADIUS + BLOCK_SIZE];
+    }
+
+    __syncthreads();
+
     
     // Apply the stencil
     int result = 0;
     for (int offset = -RADIUS; offset <= RADIUS; offset++){
-        result += in[index + RADIUS + offset]; 
+        result += temp[lindex + offset]; 
     }
 
     // Store the result
-    out[index] = result;
+    out[gindex] = result;
 }
 
 void random_ints(int *a, int n){
